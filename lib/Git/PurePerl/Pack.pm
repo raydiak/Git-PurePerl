@@ -72,20 +72,23 @@ method read_compressed ($offset, $size) {
     my $out = Buf.new;
 
     my $decompressor = Compress::Zlib::Stream.new;
-    while $out.bytes < $size {
+    my $read = 0;
+    while !$decompressor.finished {
         my $block = $fh.read: 4096;
-        say $block;
+        $read += $block.bytes;
         my $data = $decompressor.inflate: $block;
         die $data if $data ~~ Failure;
         $out ~= $data;
     }
+
+    $fh.seek: ($offset + $read - $decompressor.bytes-left), 0;
 
     fail "$out.bytes() is not $size" unless $out.bytes == $size;
 
     return $out;
 }
 
-method unpack_deltified ($type, $offset is copy, $obj_offset, $size) {
+method unpack_deltified ($type is copy, $offset is copy, $obj_offset, $size) {
     my $fh = $.fh;
 
     my $base;
@@ -108,9 +111,9 @@ method unpack_deltified ($type, $offset is copy, $obj_offset, $size) {
         $base_offset = $obj_offset - $base_offset;
         $offset += $i + 1;
 
-        ( $type, *, $base ) = self.unpack_object($base_offset);
+        ( $type, $, $base ) = self.unpack_object($base_offset);
     } else {
-        ( $type, *, $base ) = self.get_object($sha1);
+        ( $type, $, $base ) = self.get_object($sha1);
         $offset += $SHA1Size;
 
     }
@@ -138,25 +141,25 @@ method patch_delta ($base, $delta) {
 
             my $cp_off  = 0;
             my $cp_size = 0;
-            $cp_off = substr( $delta, $pos++, 1 ).unpack( 'C' )
+            $cp_off = $delta.subbuf($pos++, 1).unpack( 'C' )
                 if ( $c +& 0x01 ) != 0;
-            $cp_off |= substr( $delta, $pos++, 1 ).unpack( 'C' ) +< 8
+            $cp_off +|= $delta.subbuf($pos++, 1).unpack( 'C' ) +< 8
                 if ( $c +& 0x02 ) != 0;
-            $cp_off |= substr( $delta, $pos++, 1 ).unpack( 'C' ) +< 16
+            $cp_off +|= $delta.subbuf($pos++, 1).unpack( 'C' ) +< 16
                 if ( $c +& 0x04 ) != 0;
-            $cp_off |= substr( $delta, $pos++, 1 ).unpack( 'C' ) +< 24
+            $cp_off +|= $delta.subbuf($pos++, 1).unpack( 'C' ) +< 24
                 if ( $c +& 0x08 ) != 0;
-            $cp_size = substr( $delta, $pos++, 1 ).unpack( 'C' )
+            $cp_size = $delta.subbuf($pos++, 1).unpack( 'C' )
                 if ( $c +& 0x10 ) != 0;
-            $cp_size |= substr( $delta, $pos++, 1 ).unpack( 'C' ) +< 8
+            $cp_size +|= $delta.subbuf($pos++, 1).unpack( 'C' ) +< 8
                 if ( $c +& 0x20 ) != 0;
-            $cp_size |= substr( $delta, $pos++, 1 ).unpack( 'C' ) +< 16
+            $cp_size +|= $delta.subbuf($pos++, 1).unpack( 'C' ) +< 16
                 if ( $c +& 0x40 ) != 0;
             $cp_size = 0x10000 if $cp_size == 0;
 
-            $dest ~= substr( $base, $cp_off, $cp_size );
+            $dest ~= $base.subbuf: $cp_off, $cp_size;
         } elsif ( $c != 0 ) {
-            $dest ~= substr( $delta, $pos, $c );
+            $dest ~= $delta.subbuf: $pos, $c;
             $pos += $c;
         } else {
             fail 'invalid delta data';
@@ -169,12 +172,12 @@ method patch_delta ($base, $delta) {
     return $dest;
 }
 
-method patch_delta_header_size ($delta, $pos) {
+method patch_delta_header_size ($delta, $pos is copy) {
     my $size  = 0;
     my $shift = 0;
     loop {
 
-        my $c = substr( $delta, $pos, 1 );
+        my $c = $delta.subbuf: $pos, 1;
         unless ( defined $c ) {
             fail 'invalid delta header';
         }

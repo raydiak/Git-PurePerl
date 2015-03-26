@@ -10,7 +10,7 @@ my @TYPES = ( 'none', 'commit', 'tree', 'blob', 'tag', '', 'ofs_delta',
 method create_index {
     my $index_filename = ~self.filename;
     $index_filename ~~ s/\.pack/.idx/;
-    my $index_fh = $index_filename.IO.open: :w;
+    my $index_fh = $index_filename.IO.open: :bin :w;
 
     my %offsets = self.create_index_offsets;
     my @fan_out_table;
@@ -20,13 +20,13 @@ method create_index {
         @fan_out_table[$slot]++;
     }
     for ^256 -> $i {
-        $index_fh.print: pack( 'N', @fan_out_table[$i] || 0 );
+        $index_fh.write: pack( 'N', @fan_out_table[$i] || 0 );
         @fan_out_table[ $i + 1 ] += @fan_out_table[$i] || 0;
     }
     for %offsets.keys.sort -> $sha1 {
         my $offset = %offsets{$sha1};
-        $index_fh.print: pack( 'N',  $offset );
-        $index_fh.print: pack( 'H*', $sha1 );
+        $index_fh.write: pack( 'N',  $offset );
+        $index_fh.write: pack( 'H*', $sha1 );
     }
 
     # read the pack checksum from the end of the pack file
@@ -35,10 +35,10 @@ method create_index {
     $fh.seek: $size - 20, 0;
     my $pack_sha1 = $fh.read: 20;
 
-    $index_fh.print: $pack_sha1;
+    $index_fh.write: $pack_sha1;
     $index_fh.close;
-    my $digest = sha1 $index_filename.slurp: :bin;
-    $index_filename.spurt: $digest, :append;
+    my $digest = sha1 $index_filename.IO.slurp: :bin;
+    $index_filename.IO.spurt: $digest, :append :bin;
 }
 
 method create_index_offsets {
