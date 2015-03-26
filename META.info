@@ -1,0 +1,8 @@
+{
+    "name" : "Git::PurePerl",
+    "version" : "*",
+    "description" : "A Pureish Perl 6 interface to Git repositories",
+    "author" : "raydiak",
+    "depends" : [ ],
+    "source-url" : "git://github.com/raydiak/Git-PurePerl.git"
+}
