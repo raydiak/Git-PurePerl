@@ -25,13 +25,13 @@ submethod BUILD (:$filename is copy) {
     my @offsets = 0;
     $fh.seek( self.global_offset, 0 );
     for ^$FanOutCount -> $i {
-        my $data = $fh->read($IdxOffsetSize);
+        my $data = $fh.read($IdxOffsetSize);
         my $offset = $data.unpack( 'N' );
-        fail("pack has discontinuous index") if $offset < @offsets[-1];
+        fail("pack has discontinuous index") if $offset < @offsets[*-1];
         push @offsets, $offset;
     }
     @!offsets = @offsets;
-    $!size = @offsets[-1];
+    $!size = @offsets[*-1];
 }
 
 # vim: ft=perl6

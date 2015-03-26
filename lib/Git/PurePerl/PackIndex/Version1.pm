@@ -42,7 +42,7 @@ method get_object_offset ($want_sha1) {
     my ( $first, $last ) = @offsets[ $slot, $slot + 1 ];
 
     while ( $first < $last ) {
-        my $mid = int( ( $first + $last ) / 2 );
+        my $mid = ( ( $first + $last ) / 2 ).Int;
         $fh.seek( $SHA1Start + $mid * $EntrySize, 0 );
         my $data = $fh.read( $SHA1Size );
         my $midsha1 = $data.unpack( 'H*');

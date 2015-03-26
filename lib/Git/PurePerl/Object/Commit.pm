@@ -3,14 +3,14 @@ class Git::PurePerl::Object::Commit is Git::PurePerl::Object;
 use Git::PurePerl::Actor;
 use DateTime::TimeZone;
 
-has ObjectKind $.kind = 'commit';
+has $.kind = 'commit';
 has Str $.tree_sha1 is rw;
 has Str @.parent_sha1s is rw = Array[Str].new;
 has Git::PurePerl::Actor $.author is rw;
 has DateTime $.authored_time is rw;
 has Git::PurePerl::Actor $.committer is rw;
 has DateTime $.committed_time is rw;
-has Str comment is rw;
+has Str $.comment is rw;
 has Str $.encoding is rw;
 
 my %method_map = (
@@ -29,11 +29,11 @@ submethod BUILD {
         my ( $key, $value ) = split ' ', $line, 2;
         push %header{$key}, $value;
     }
-    %header<encoding>
-        ||= [ self.git.config.get(key => "i18n.commitEncoding") || "utf-8" ];
+    %header<encoding> = 'utf-8';
+        # ||= [ self.git.config.get(key => "i18n.commitEncoding") || "utf-8" ];
     my $encoding = %header<encoding>[*-1];
-    for keys %header -> $key {
-        for $header{$key}.list -> $value {
+    for keys %header -> $key is copy {
+        for %header{$key}.list -> $value is copy {
             $value = $value.encode('latin-1').decode($encoding);
             if ( $key eq 'committer' or $key eq 'author' ) {
                 my @data = split ' ', $value;
@@ -48,7 +48,7 @@ submethod BUILD {
                     = DateTime.new( +$epoch, :timezone(tz-offset $tz) );
                 self."$key"() = $dt;
             } else {
-                $key = $method_map{$key} || $key;
+                $key = %method_map{$key} || $key;
                 self."$key"() = $value;
             }
         }
@@ -62,8 +62,10 @@ method tree {
 }
 
 
-method _push_parent_sha1 ($sha1) {
-    push(@!parent_sha1s, $sha1);
+method _push_parent_sha1 () is rw {
+    Proxy.new:
+        FETCH => { True },
+        STORE => -> $, $sha1 { push(@!parent_sha1s, $sha1) };
 }
 
 method parent_sha1 {
@@ -75,7 +77,7 @@ method parent {
 }
 
 method parents {
-    return map { self.git.get_object( $_ ) }, @.parent_sha1s;
+    return map { self.git.get_object( $_ ) }, self.parent_sha1s;
 }
 
 # vim: ft=perl6

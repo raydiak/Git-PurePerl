@@ -1,9 +1,9 @@
 use Git::PurePerl::Object;
 class Git::PurePerl::Object::Tag is Git::PurePerl::Object;
 use Git::PurePerl::Actor;
-use DateTime::Timezone;
+use DateTime::TimeZone;
 
-has ObjectKind $.kind = 'tag';
+has $.kind = 'tag';
 has Str $.object is rw;
 has Str $.tag is rw;
 has Git::PurePerl::Actor $.tagger is rw;
@@ -30,7 +30,7 @@ submethod BUILD {
 	        $!tagged_time = $dt;
 	    } else {
 			my $method = %method_map{$key} || $key;
-	        self."$method" = $value;
+	        self."$method"() = $value;
 	    }
     }
     $!comment = join "\n", @lines;

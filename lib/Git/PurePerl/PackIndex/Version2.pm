@@ -34,7 +34,7 @@ method all_sha1s ($want_sha1) {
         $pos += $CrcSize;
     }
     $fh.seek( $pos + self.global_offset, 0 );
-    for ^($self.size) -> $i {
+    for ^(self.size) -> $i {
         my $offset = $fh.read( $OffsetSize );
         @data[$i][2] = $offset.unpack('N');
         $pos += $OffsetSize;

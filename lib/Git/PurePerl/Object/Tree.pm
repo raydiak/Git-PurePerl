@@ -2,7 +2,7 @@ use Git::PurePerl::Object;
 class Git::PurePerl::Object::Tree is Git::PurePerl::Object;
 use Git::PurePerl::DirectoryEntry;
 
-has ObjectKind $.kind = 'tree';
+has $.kind = 'tree';
 has Git::PurePerl::DirectoryEntry @.directory_entries is rw;
 
 submethod BUILD (:$!kind) {

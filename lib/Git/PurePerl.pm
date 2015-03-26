@@ -1,6 +1,11 @@
 class Git::PurePerl;
 use Git::PurePerl::Protocol;
 use Git::PurePerl::Pack::WithoutIndex;
+use Git::PurePerl::Pack::WithIndex;
+use Git::PurePerl::Object::Commit;
+use Git::PurePerl::Object::Tree;
+use Git::PurePerl::Object::Blob;
+use Git::PurePerl::Object::Tag;
 use File::Find;
 
 has IO::Path $.directory;
@@ -17,9 +22,13 @@ submethod BUILD (:$directory is copy, :$gitdir is copy, |args) {
 
 has @.packs is rw;
 method packs is rw {
-    @!packs //= $.gitdir.child('objects').child('pack').dir(test => /\.pack$/).map: {
-        Git::PurePerl::Pack::WithIndex.new: :filename($_)
-    };
+    unless state $init {
+        @!packs = $.gitdir.child('objects').child('pack').dir(test => /\.pack$/).map: {
+            Git::PurePerl::Pack::WithIndex.new: :filename($_)
+        };
+        $init = True;
+    }
+    @!packs;
 }
 
 #`[[[
@@ -173,7 +182,7 @@ sub get_objects {
 ]]]
 
 method get_object_packed ($sha1) {
-    for @.packs -> $pack {
+    for self.packs -> $pack {
         my ( $kind, $size, $content ) = $pack.get_object($sha1);
         if ( defined($kind) && defined($size) && defined($content) ) {
             return self.create_object( $sha1, $kind, $size, $content );
@@ -190,46 +199,47 @@ sub get_object_loose {
         return $self->create_object( $sha1, $kind, $size, $content );
     }
 }
+]]]
 
-sub create_object {
-    my ( $self, $sha1, $kind, $size, $content ) = @_;
+method create_object ($sha1, $kind, $size, $content) {
     if ( $kind eq 'commit' ) {
-        return Git::PurePerl::Object::Commit->new(
-            sha1    => $sha1,
-            kind    => $kind,
-            size    => $size,
-            content => $content,
-            git     => $self,
+        return Git::PurePerl::Object::Commit.new(
+            :$sha1,
+            :$kind,
+            :$size,
+            :$content,
+            :git(self),
         );
     } elsif ( $kind eq 'tree' ) {
-        return Git::PurePerl::Object::Tree->new(
-            sha1    => $sha1,
-            kind    => $kind,
-            size    => $size,
-            content => $content,
-            git     => $self,
+        return Git::PurePerl::Object::Tree.new(
+            :$sha1,
+            :$kind,
+            :$size,
+            :$content,
+            :git(self),
         );
     } elsif ( $kind eq 'blob' ) {
-        return Git::PurePerl::Object::Blob->new(
-            sha1    => $sha1,
-            kind    => $kind,
-            size    => $size,
-            content => $content,
-            git     => $self,
+        return Git::PurePerl::Object::Blob.new(
+            :$sha1,
+            :$kind,
+            :$size,
+            :$content,
+            :git(self),
         );
     } elsif ( $kind eq 'tag' ) {
-        return Git::PurePerl::Object::Tag->new(
-            sha1    => $sha1,
-            kind    => $kind,
-            size    => $size,
-            content => $content,
-            git     => $self,
+        return Git::PurePerl::Object::Tag.new(
+            :$sha1,
+            :$kind,
+            :$size,
+            :$content,
+            :git(self),
         );
     } else {
-        confess "unknown kind $kind: $content";
+        fail "unknown kind $kind: $content";
     }
 }
 
+#`[[[
 sub all_sha1s {
     my $self = shift;
     my $dir = dir( $self->gitdir, 'objects' );
@@ -371,7 +381,8 @@ method clone ($remote) {
     self.update_ref: 'master', $head;
 }
 
-method _add_file ($filename, Blob $contents) {
+method _add_file ($filename, $contents is copy) {
+    $contents .= encode: 'latin-1' unless $contents ~~ Blob;
     $filename.parent.mkdir;
     $filename.spurt: $contents;
 }
