@@ -1,6 +1,7 @@
 class Git::PurePerl;
 use Git::PurePerl::Protocol;
 use Git::PurePerl::Pack::WithoutIndex;
+use File::Find;
 
 has IO::Path $.directory;
 has IO::Path $.gitdir = self.directory.child: '.git';
@@ -14,14 +15,16 @@ submethod BUILD (:$directory is copy, :$gitdir is copy, |args) {
     }
 }
 
+has @.packs is rw;
+method packs is rw {
+    @!packs //= $.gitdir.child('objects').child('pack').dir(test => /\.pack$/).map: {
+        Git::PurePerl::Pack::WithIndex.new: :filename($_)
+    };
+}
+
 #`[[[
 has $.loose is rw =
     Git::PurePerl::Loose.new: directory => $.gitdir.child: 'objects';
-
-has @.packs is rw =
-    $.gitdir.child('objects').child('pack').dir(test => /\.pack$/).map: {
-        Git::PurePerl::Pack::WithIndex.new: :filename($_)
-    };
 
 has $.description = $.gitdir.child('description').slurp.chomp;
 
@@ -73,71 +76,79 @@ sub refs {
     my $self = shift;
     return map { $self->ref($_) } $self->ref_names;
 }
+]]]
 
-sub ref_sha1 {
-    my ( $self, $wantref ) = @_;
-    my $dir = dir( $self->gitdir, 'refs' );
-    return unless -d $dir;
+method ref_sha1 ($wantref) {
+    my $dir = $.gitdir.child: 'refs';
+    return unless $dir.d;
 
     if ($wantref eq "HEAD") {
-        my $file = file($self->gitdir, 'HEAD');
-        my $sha1 = file($file)->slurp
-            || confess("Error reading $file: $!");
+        my $file = $.gitdir.child: 'HEAD';
+        my $sha1 = $file.slurp;
         chomp $sha1;
-        return _ensure_sha1_is_sha1( $self, $sha1 );
+        return self._ensure_sha1_is_sha1: $sha1;
     }
 
-    foreach my $file ( File::Find::Rule->new->file->in($dir) ) {
-        my $ref = 'refs/' . file($file)->relative($dir)->as_foreign('Unix');
+    for find(:$dir, :type<file>).list -> $file is copy {
+        my $ref = '';
+        my $work = $file.relative($dir).IO; # todo report/fix: .IO shouldn't be needed here
+        until $work eq '.'|'' {
+            if $ref eq '' {
+                $ref = $work.basename;
+            } else {
+                $ref = "$work.basename()/$ref";
+            }
+            $work .= parent;
+        }
+        $ref = "refs/$ref";
+
         if ( $ref eq $wantref ) {
-            my $sha1 = file($file)->slurp
-                || confess("Error reading $file: $!");
-            chomp $sha1;
-            return _ensure_sha1_is_sha1( $self, $sha1 );
+            my $sha1 = $file.slurp.chomp;
+            return self._ensure_sha1_is_sha1($sha1);
         }
     }
 
-    my $packed_refs = file( $self->gitdir, 'packed-refs' );
-    if ( -f $packed_refs ) {
+    my $packed_refs = $.gitdir.child: 'packed-refs';
+    if ( $packed_refs.f ) {
         my $last_name;
         my $last_sha1;
-        foreach my $line ( $packed_refs->slurp( chomp => 1 ) ) {
-            next if $line =~ /^#/;
-            my ( $sha1, my $name ) = split ' ', $line;
-            $sha1 =~ s/^\^//;
+        for $packed_refs.lines -> $line {
+            next if $line ~~ /^\#/; 
+            my ( $sha1, $name ) = split ' ', $line;
+            $sha1 ~~ s/^\^//;
             $name ||= $last_name;
 
-            return _ensure_sha1_is_sha1( $self, $last_sha1 ) if $last_name and $last_name eq $wantref and $name ne $wantref;
+            return self._ensure_sha1_is_sha1: $last_sha1 if $last_name and $last_name eq $wantref and $name ne $wantref;
 
             $last_name = $name;
             $last_sha1 = $sha1;
         }
-        return _ensure_sha1_is_sha1( $self, $last_sha1 ) if $last_name eq $wantref;
+        return self._ensure_sha1_is_sha1: $last_sha1 if $last_name eq $wantref;
     }
-    return undef;
+    return Any;
 }
 
-sub _ensure_sha1_is_sha1 {
-    my ( $self, $sha1 ) = @_;
-    return $self->ref_sha1($1) if $sha1 =~ /^ref: (.*)/;
+method _ensure_sha1_is_sha1 ($sha1) {
+    return self.ref_sha1(~$0) if $sha1 ~~ /^ref: (.*)/;
     return $sha1;
 }
 
-sub ref {
-    my ( $self, $wantref ) = @_;
-    return $self->get_object( $self->ref_sha1($wantref) );
+method ref ($wantref) {
+    return self.get_object( self.ref_sha1($wantref) );
 }
 
+#`[[[
 sub master_sha1 {
     my $self = shift;
     return $self->ref_sha1('refs/heads/master');
 }
+]]]
 
-sub master {
-    my $self = shift;
-    return $self->ref('refs/heads/master');
+method master {
+    return self.ref('refs/heads/master');
 }
 
+#`[[[
 sub head_sha1 {
     my $self = shift;
     return $self->ref_sha1('HEAD');
@@ -147,29 +158,30 @@ sub head {
     my $self = shift;
     return $self->ref('HEAD');
 }
+]]]
 
-sub get_object {
-    my ( $self, $sha1 ) = @_;
+method get_object ($sha1) {
     return unless $sha1;
-    return $self->get_object_packed($sha1) || $self->get_object_loose($sha1);
+    return self.get_object_packed($sha1);# || self.get_object_loose($sha1);
 }
 
+#`[[[
 sub get_objects {
     my ( $self, @sha1s ) = @_;
     return map { $self->get_object($_) } @sha1s;
 }
+]]]
 
-sub get_object_packed {
-    my ( $self, $sha1 ) = @_;
-
-    foreach my $pack ( $self->packs ) {
-        my ( $kind, $size, $content ) = $pack->get_object($sha1);
+method get_object_packed ($sha1) {
+    for @.packs -> $pack {
+        my ( $kind, $size, $content ) = $pack.get_object($sha1);
         if ( defined($kind) && defined($size) && defined($content) ) {
-            return $self->create_object( $sha1, $kind, $size, $content );
+            return self.create_object( $sha1, $kind, $size, $content );
         }
     }
 }
 
+#`[[[
 sub get_object_loose {
     my ( $self, $sha1 ) = @_;
 
@@ -322,30 +334,26 @@ sub init {
 
     return $class->new(%arguments);
 }
+]]]
 
-sub checkout {
-    my ( $self, $directory, $tree ) = @_;
-    $directory ||= $self->directory;
-    $tree ||= $self->master->tree;
-    confess("Missing tree") unless $tree;
-    foreach my $directory_entry ( $tree->directory_entries ) {
-        my $filename = file( $directory, $directory_entry->filename );
-        my $sha1     = $directory_entry->sha1;
-        my $mode     = $directory_entry->mode;
-        my $object   = $self->get_object($sha1);
-        if ( $object->kind eq 'blob' ) {
-            $self->_add_file( $filename, $object->content );
-            chmod( oct( '0' . $mode ), $filename )
-                || die "Error chmoding $filename to $mode: $!";
-        } elsif ( $object->kind eq 'tree' ) {
-            dir($filename)->mkpath;
-            $self->checkout( $filename, $object );
+method checkout ($directory = $.directory, $tree = self.master.tree) {
+    fail("Missing tree") unless $tree;
+    for $tree.directory_entries -> $directory_entry {
+        my $filename = $directory.child: $directory_entry.filename;
+        my $sha1     = $directory_entry.sha1;
+        my $mode     = $directory_entry.mode;
+        my $object   = self.get_object($sha1);
+        if ( $object.kind eq 'blob' ) {
+            self._add_file( $filename, $object.content );
+            $filename.chmod( :8($mode) );
+        } elsif ( $object.kind eq 'tree' ) {
+            $filename.mkdir;
+            self.checkout( $filename, $object );
         } else {
-            die $object->kind;
+            die $object.kind;
         }
     }
 }
-]]]
 
 method clone ($remote) {
     my $protocol = Git::PurePerl::Protocol.new: :$remote;

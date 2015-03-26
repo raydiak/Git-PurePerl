@@ -30,7 +30,7 @@ method create_index {
     }
 
     # read the pack checksum from the end of the pack file
-    my $size = $.filename.s; # ;; TODO report vim-perl p6 higlight fail
+    my $size = self.filename.Str.IO.s; # todo report caching problem
     my $fh   = $.fh;
     $fh.seek: $size - 20, 0;
     my $pack_sha1 = $fh.read: 20;
