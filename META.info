@@ -3,6 +3,11 @@
     "version" : "*",
     "description" : "A Pureish Perl 6 interface to Git repositories",
     "author" : "raydiak",
-    "depends" : [ ],
+    "depends" : [
+        "Compress::Zlib",
+        "DateTime::TimeZone",
+        "Digest",
+        "File::Find"
+    ],
     "source-url" : "git://github.com/raydiak/Git-PurePerl.git"
 }
