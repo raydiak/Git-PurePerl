@@ -1,3 +1,4 @@
+use experimental :pack;
 use Git::PurePerl::Pack;
 use Digest::SHA;
 unit class Git::PurePerl::Pack::WithoutIndex is Git::PurePerl::Pack;

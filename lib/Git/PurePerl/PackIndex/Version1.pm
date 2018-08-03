@@ -1,3 +1,4 @@
+use experimental :pack;
 use Git::PurePerl::PackIndex;
 unit class Git::PurePerl::PackIndex::Version1 is Git::PurePerl::PackIndex;
 
