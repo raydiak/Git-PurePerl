@@ -1,3 +1,4 @@
+use experimental :pack;
 unit class Git::PurePerl::PackIndex;
 
 has IO::Path $.filename = die "filename is required";
@@ -23,7 +24,7 @@ submethod BUILD (:$filename is copy) {
     $!fh = $fh;
 
     my @offsets = 0;
-    $fh.seek( self.global_offset, 0 );
+    $fh.seek( self.global_offset, SeekFromBeginning );
     for ^$FanOutCount -> $i {
         my $data = $fh.read($IdxOffsetSize);
         my $offset = $data.unpack( 'N' );

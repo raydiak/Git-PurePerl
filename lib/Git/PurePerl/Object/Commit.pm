@@ -49,7 +49,7 @@ submethod BUILD {
                 self."$key"() = $dt;
             } else {
                 $key = %method_map{$key} || $key;
-                self."$key"() = $value;
+                try self."$key"() = $value; # TODO throws error about gpgsig without try here
             }
         }
     }

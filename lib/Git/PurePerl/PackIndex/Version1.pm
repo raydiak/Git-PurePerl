@@ -21,7 +21,7 @@ method all_sha1s ($want_sha1) {
     my @sha1s;
 
     my $pos = $OffsetStart;
-    $fh.seek( $pos, 0 );
+    $fh.seek( $pos, SeekFromBeginning );
     for 1 .. self.size -> $i {
         my $data = $fh.read( $OffsetSize );
         my $offset = $data.unpack( 'N' );
@@ -44,7 +44,7 @@ method get_object_offset ($want_sha1) {
 
     while ( $first < $last ) {
         my $mid = ( ( $first + $last ) / 2 ).Int;
-        $fh.seek( $SHA1Start + $mid * $EntrySize, 0 );
+        $fh.seek( $SHA1Start + $mid * $EntrySize, SeekFromBeginning );
         my $data = $fh.read( $SHA1Size );
         my $midsha1 = $data.unpack( 'H*');
         if ( $midsha1 lt $want_sha1 ) {
@@ -53,7 +53,7 @@ method get_object_offset ($want_sha1) {
             $last = $mid;
         } else {
             my $pos = $OffsetStart + $mid * $EntrySize;
-            $fh.seek( $pos, 0 );
+            $fh.seek( $pos, SeekFromBeginning );
             my $data = $fh.read( $OffsetSize );
             my $offset = $data.unpack('N');
             return $offset;

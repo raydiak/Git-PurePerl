@@ -1,3 +1,4 @@
+use experimental :pack;
 unit class Git::PurePerl::Pack;
 use Compress::Zlib;
 
@@ -28,7 +29,7 @@ method unpack_object ($offset is copy) {
     my $obj_offset = $offset;
     my $fh         = self.fh;
 
-    $fh.seek( $offset, 0 );
+    $fh.seek( $offset, SeekFromBeginning );
     my $c = $fh.read( 1 );
     $c = $c.unpack: 'C';
 
@@ -67,7 +68,7 @@ method unpack_object ($offset is copy) {
 method read_compressed ($offset, $size) {
     my $fh = $.fh;
 
-    $fh.seek: $offset, 0;
+    $fh.seek: $offset, SeekFromBeginning;
 
     my $out = Buf.new;
 
@@ -81,7 +82,7 @@ method read_compressed ($offset, $size) {
         $out ~= $data;
     }
 
-    $fh.seek: ($offset + $read - $decompressor.bytes-left), 0;
+    $fh.seek: ($offset + $read - $decompressor.bytes-left), SeekFromBeginning;
 
     fail "$out.bytes() is not $size" unless $out.bytes == $size;
 
@@ -93,7 +94,7 @@ method unpack_deltified ($type is copy, $offset is copy, $obj_offset, $size) {
 
     my $base;
 
-    $fh.seek( $offset, 0 );
+    $fh.seek( $offset, SeekFromBeginning );
     my $data= $fh.read( $SHA1Size );
     my $sha1 = $data.unpack: 'H*';
 

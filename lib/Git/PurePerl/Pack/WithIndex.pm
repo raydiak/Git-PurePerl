@@ -1,3 +1,4 @@
+use experimental :pack;
 use Git::PurePerl::Pack;
 unit class Git::PurePerl::Pack::WithIndex is Git::PurePerl::Pack;
 use Git::PurePerl::PackIndex;

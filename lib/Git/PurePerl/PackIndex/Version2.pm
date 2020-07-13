@@ -1,3 +1,4 @@
+use experimental :pack;
 use Git::PurePerl::PackIndex;
 unit class Git::PurePerl::PackIndex::Version2 is Git::PurePerl::PackIndex;
 
@@ -21,19 +22,19 @@ method all_sha1s ($want_sha1) {
     my @data;
 
     my $pos = $OffsetStart;
-    $fh.seek( $pos + self.global_offset, 0 );
+    $fh.seek( $pos + self.global_offset, SeekFromBeginning );
     for ^(self.size) -> $i {
         my $sha1 = $fh.read( $SHA1Size );
         @data[$i] = [ $sha1.unpack('H*'), 0, 0 ];
         $pos += $SHA1Size;
     }
-    $fh.seek( $pos + self.global_offset, 0 );
+    $fh.seek( $pos + self.global_offset, SeekFromBeginning );
     for ^(self.size) -> $i {
         my $crc = $fh.read( $CrcSize );
         @data[$i][1] = $crc.unpack( 'H*');
         $pos += $CrcSize;
     }
-    $fh.seek( $pos + self.global_offset, 0 );
+    $fh.seek( $pos + self.global_offset, SeekFromBeginning );
     for ^(self.size) -> $i {
         my $offset = $fh.read( $OffsetSize );
         @data[$i][2] = $offset.unpack('N');
@@ -59,7 +60,7 @@ method get_object_offset ($want_sha1) {
     while ( $first < $last ) {
         my $mid = ( ( $first + $last ) / 2 ).Int;
 
-        $fh.seek( self.global_offset + $OffsetStart + ( $mid * $SHA1Size ) );
+        $fh.seek( self.global_offset + $OffsetStart + ( $mid * $SHA1Size ), SeekFromBeginning );
         my $data = $fh.read( $SHA1Size );
         my $midsha1 = $data.unpack('H*');
         if ( $midsha1 lt $want_sha1 ) {
@@ -72,7 +73,7 @@ method get_object_offset ($want_sha1) {
                 + $OffsetStart
                 + ( self.size * ( $SHA1Size + $CrcSize ) )
                 + ( $mid * $OffsetSize );
-            $fh.seek( $pos, 0 );
+            $fh.seek( $pos, SeekFromBeginning );
             my $data = $fh.read( $OffsetSize );
             my $offset = $data.unpack('N');
             return $offset;

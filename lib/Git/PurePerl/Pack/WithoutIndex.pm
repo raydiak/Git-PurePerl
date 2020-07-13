@@ -33,7 +33,7 @@ method create_index {
     # read the pack checksum from the end of the pack file
     my $size = self.filename.Str.IO.s; # todo report caching problem
     my $fh   = $.fh;
-    $fh.seek: $size - 20, 0;
+    $fh.seek: $size - 20, SeekFromBeginning;
     my $pack_sha1 = $fh.read: 20;
 
     $index_fh.write: $pack_sha1;

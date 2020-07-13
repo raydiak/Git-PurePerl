@@ -1,3 +1,4 @@
+use experimental :pack;
 use Git::PurePerl::Object;
 unit class Git::PurePerl::Object::Tree is Git::PurePerl::Object;
 use Git::PurePerl::DirectoryEntry;
